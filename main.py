@@ -7,13 +7,19 @@ BASIC_STRATEGY_TABLE = pd.read_csv('rsc/blackjackstrategychart.csv')
 
 class Deck:
     count = 0
-
+    num_decks = 0
+    suits = ['hearts', 'diamonds', 'clubs', 'spades']
+    values = ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'jack', 'queen', 'king',
+              'ace']
     def __init__(self, num_decks):
-        suits = ['hearts', 'diamonds', 'clubs', 'spades']
-        values = ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'jack', 'queen', 'king',
-                  'ace']
-        self.cards = [Card(suit, value) for _ in range(num_decks) for suit in suits for value in values]
+        self.num_decks = num_decks
+        self.cards = [Card(suit, value) for _ in range(num_decks) for suit in self.suits for value in self.values]
         self.cards_remaining = 52 * num_decks
+
+    def reshuffle(self):
+        self.cards.clear()
+        self.cards = [Card(suit, value) for _ in range(self.num_decks) for suit in self.suits for value in self.values]
+        self.cards_remaining = 52 * self.num_decks
 
     def draw(self, face_up=True):
         # Use the current time to seed the random number generator
@@ -34,6 +40,7 @@ class Deck:
 
 class Player:
     stake = 0
+    initial_bet = 0
     def __init__(self, bankroll, ABPTC): # ABPTC = additional bet per true count
         self.bankroll = bankroll
         self.ABPTC = ABPTC
@@ -87,19 +94,31 @@ class Player:
             print(decision_dict[basic_strategy(player_card_sum, dealer_card.numerical_value)])
             return basic_strategy(player_card_sum, dealer_card.numerical_value)
 
+
     def win(self, value):
+        print("win " + str(value))
         self.stake =0
         self.bankroll += value
     def lose(self, value):
+        print("lose " + str(value))
         self.stake = 0
         self.bankroll -= value
     def bet(self, true_count, min_bet):
         if true_count < 1:
             self.stake = min_bet
+            print("BET:" + str(min_bet))
+            self.initial_bet = min_bet
             return min_bet
         else:
             self.stake = true_count * self.ABPTC
+            print("BET:" + str(true_count * self.ABPTC))
+            self.initial_bet = true_count * self.ABPTC
             return true_count * self.ABPTC
+
+
+
+    def double(self):
+        self.stake += self.initial_bet
 
 
 def basic_strategy(row, col):
@@ -174,11 +193,16 @@ class Table:
         self.burn_pile.extend(self.dealer_cards)
         self.dealer_cards.clear()
         for i in range(self.num_players):
+            #print("NP " + str(self.num_players))
+            #print(str(self.player_cards))
             self.burn_pile.extend(self.player_cards[f'player {i + 1}'])
             self.player_cards[f'player {i + 1}'] = []
+            #print(str(self.player_cards))
+            #print("NP " + str(self.num_players))
         for _ in range(split):
             player_num = len(self.player_cards)
             self.player_cards.pop(f'player {player_num}')
+            self.num_players -= 1
         print("Burn Pile " + str(len(self.burn_pile)))
 
     def get_player_cards(self, player_num):
@@ -225,8 +249,10 @@ def play_round(table, num_players):
         player_decision = player.make_decision(table, player_num)
         outcome = continue_round(table, player, player_num, player_decision)
 
+
+        print("BANKROLL BEFORE: " + str(player.bankroll))
         if outcome == 1:
-            if table.get_player_sum(player_num) == 21:
+            if table.get_player_sum(player_num) == 21 and (len(table.get_player_cards(player_num)) == 2):
                 player.win(player.stake * 1.5)
             else:
                 player.win(player.stake)
@@ -245,7 +271,7 @@ def play_round(table, num_players):
                 player.win(player.stake)
             else:
                 player.lose(player.stake)
-            player_sum = table.get_player_sum(len(table.player_cards)) #TODO: FIX ERROR HERE
+            player_sum = table.get_player_sum(table.num_players-1) #TODO: FIX ERROR HERE
             if player_sum > 21:
                 player.lose(player.stake)
             elif dealer_sum > 21:
@@ -254,6 +280,7 @@ def play_round(table, num_players):
                 player.win(player.stake)
             else:
                 player.lose(player.stake)
+        print("BANKROLL AFTER: " + str(player.bankroll))
     return outcome
 
 
@@ -331,29 +358,31 @@ def main():
     num_players = 1
     num_decks = 4
     table = Table(num_players, num_decks)
-    while table.deck.cards_remaining > 10:
-        print(table.deck.cards_remaining)
-        table.deal_dealer()
-        table.deal_dealer(face_up=False)
-        print("\nDEALER CARDS")
-        dealer_cards = table.get_dealer_cards()
-        for card in dealer_cards:
-            if card.face_up:
-                print(str([card.numerical_value, card.suit]))
-        print("\n")
+    for _ in range(100):
+        while table.deck.cards_remaining > 40:
+            print(table.deck.cards_remaining)
+            table.deal_dealer()
+            table.deal_dealer(face_up=False)
+            print("\nDEALER CARDS")
+            dealer_cards = table.get_dealer_cards()
+            for card in dealer_cards:
+                if card.face_up:
+                    print(str([card.numerical_value, card.suit]))
+            print("\n")
 
-        print("PLAYER CARDS")
-        outcome = play_round(table, num_players)
-        print("Dealer sum: " + str(table.get_dealer_sum()))
-        print("Outcome: " + str(outcome))
-        print("PLAYER BANKROLL " + str(table.players[0].bankroll))
-        print(table.deck.cards_remaining)
-        print("***********************************************************************************\n")
-        if outcome == 2:
-            split = 1
-        else:
-            split = 0
-        table.table_refresh(split)
+            print("PLAYER CARDS")
+            outcome = play_round(table, num_players)
+            print("Dealer sum: " + str(table.get_dealer_sum()))
+            print("Outcome: " + str(outcome))
+            print("PLAYER BANKROLL " + str(table.players[0].bankroll))
+            print(table.deck.cards_remaining)
+            print("***********************************************************************************\n")
+            if outcome == 2:
+                split = 1
+            else:
+                split = 0
+            table.table_refresh(split)
+        table.deck.reshuffle()
 
 
 if __name__ == "__main__":
