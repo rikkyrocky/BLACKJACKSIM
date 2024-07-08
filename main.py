@@ -161,9 +161,12 @@ class Card:
 class Table:
     burn_pile = []
     dealer_cards = []
+    split_cards = {}
+    initial_num_players = 0
 
     def __init__(self, num_players, num_decks):
         player_ABPTC = [20 for _ in range(num_players)]
+        self.initial_num_players = num_players
         self.num_players = num_players
         self.num_decks = num_decks
         self.deck = Deck(num_decks)
@@ -186,7 +189,24 @@ class Table:
         self.num_players += 1
         second_pair = self.player_cards[f'player {player_num + 1}'].pop()
         self.player_cards[f'player {len(self.player_cards) + 1}'] = list([second_pair])
+        print(str(self.split_cards))
+
+
+        if f'player {player_num + 1}' in self.split_cards:
+            root_player = self.split_cards[f'player {player_num + 1}']
+            while root_player !< self.initial_num_players:
+
+        self.split_cards[f'player {len(self.player_cards)}'] = player_num
+        print(str(self.split_cards))
         return len(self.player_cards) - 1
+
+    def get_hand_sums(self, player_num):
+        hand_sums = []
+        for value in self.split_cards:
+            if self.split_cards[value] == player_num:
+                hand_sums.append(self.get_player_sum(int(value[-1]) - 1))
+        self.split_cards.clear()
+        return hand_sums
 
 
     def table_refresh(self, split=0):
@@ -271,15 +291,20 @@ def play_round(table, num_players):
                 player.win(player.stake)
             else:
                 player.lose(player.stake)
-            player_sum = table.get_player_sum(table.num_players-1) #TODO: FIX ERROR HERE
-            if player_sum > 21:
-                player.lose(player.stake)
-            elif dealer_sum > 21:
-                player.win(player.stake)
-            elif player_sum > dealer_sum:
-                player.win(player.stake)
-            else:
-                player.lose(player.stake)
+            #player_sum = table.get_player_sum(table.num_players-1) #TODO: FIX ERROR HERE
+            hand_sums = table.get_hand_sums(player_num)
+            print("NUM HANDS: " + str(hand_sums))
+            for player_sum in hand_sums:
+                #print("NUM HANDS: " + str(table.get_hand_sums(player_num)))
+
+                if player_sum > 21:
+                    player.lose(player.stake)
+                elif dealer_sum > 21:
+                    player.win(player.stake)
+                elif player_sum > dealer_sum:
+                    player.win(player.stake)
+                else:
+                    player.lose(player.stake)
         print("BANKROLL AFTER: " + str(player.bankroll))
     return outcome
 
